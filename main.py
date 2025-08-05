@@ -2,9 +2,22 @@ import tkinter as tk
 from tkinter import messagebox, filedialog, scrolledtext, ttk
 import sqlite3
 import os
-import fitz  # PyMuPDF
+import fitz 
+import pyttsx3
+import speech_recognition as sr
+import threading
+import time
+
+# ---------- INITIAL SETUP ----------
+
+#initialize tts engine for text-to-speech
+engine = pyttsx3.init()
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
 
 # ---------- DATABASE SETUP ----------
+
 conn = sqlite3.connect('mesmerizer.db')
 cursor = conn.cursor()
 cursor.execute('''
@@ -15,6 +28,47 @@ cursor.execute('''
     )
 ''')
 conn.commit()
+
+# ---------- FUNCTION ----------
+
+def start_voice_session():
+    time.sleep(2)  # slight delay for GUI to load
+    speak("Hello, I'm Mesmerizer.")
+    speak("Would you like to upload a new PDF or access an existing one?")
+    response = listen_to_user()
+
+    if response:
+        if "upload" in response:
+            speak("Okay, opening upload dialog.")
+            upload_pdf()
+        elif "access" in response or "existing" in response or "read" in response:
+            cursor.execute("SELECT filename FROM pdfs")
+            files = [row[0] for row in cursor.fetchall()]
+            if files:
+                speak(f"You have {len(files)} file(s) stored.")
+                speak("Available files are: " + ", ".join(files[:3]))
+                speak("Please select one from the dropdown or say load.")
+            else:
+                speak("No PDFs stored yet.")
+        else:
+            speak("I didn't understand that. Please click a button to continue.")
+
+def listen_to_user():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        log("[VOICE] Listening...")
+        speak("Listening now.")
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            query = recognizer.recognize_google(audio).lower()
+            log(f"[VOICE] You said: {query}")
+            return query
+        except sr.UnknownValueError:
+            speak("Sorry, I didn't catch that.")
+            return None
+        except sr.RequestError:
+            speak("Sorry, I'm having trouble with speech recognition.")
+            return None
 
 # ---------- GUI FUNCTIONS ----------
 
