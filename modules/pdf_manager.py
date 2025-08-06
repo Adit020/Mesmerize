@@ -1,21 +1,14 @@
+# modules/pdf_manager.py
 import os
-import fitz
+import fitz  # PyMuPDF
 import sqlite3
 from tkinter import filedialog
 
-# Database connection
-conn = sqlite3.connect("mesmerizer.db", check_same_thread=False)
+# --- DB CONNECTION ---
+conn = sqlite3.connect("mesmerizer.db")
 cursor = conn.cursor()
 
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS pdfs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT UNIQUE,
-        content TEXT
-    )
-''')
-conn.commit()
-
+# --- FUNCTIONS ---
 def upload_pdf_dialog():
     file_path = filedialog.askopenfilename(filetypes=[("PDF Files", "*.pdf")])
     if not file_path:
@@ -23,19 +16,16 @@ def upload_pdf_dialog():
 
     filename = os.path.basename(file_path)
 
-    # Check if already exists
     cursor.execute("SELECT content FROM pdfs WHERE filename = ?", (filename,))
     if cursor.fetchone():
-        return f"'{filename}' already uploaded."
+        return f"'{filename}' is already uploaded."
 
-    try:
-        doc = fitz.open(file_path)
-        content = "\n".join([page.get_text() for page in doc])
-        cursor.execute("INSERT INTO pdfs (filename, content) VALUES (?, ?)", (filename, content))
-        conn.commit()
-        return f"'{filename}' uploaded successfully."
-    except Exception as e:
-        return f"Error uploading: {str(e)}"
+    doc = fitz.open(file_path)
+    content = "\n".join([page.get_text() for page in doc])
+
+    cursor.execute("INSERT INTO pdfs (filename, content) VALUES (?, ?)", (filename, content))
+    conn.commit()
+    return f"'{filename}' uploaded and stored."
 
 def list_pdfs():
     cursor.execute("SELECT filename FROM pdfs ORDER BY id DESC")
@@ -43,5 +33,18 @@ def list_pdfs():
 
 def get_pdf_content(filename):
     cursor.execute("SELECT content FROM pdfs WHERE filename = ?", (filename,))
-    row = cursor.fetchone()
-    return row[0] if row else None
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+def search_pdf_content(filename, keyword):
+    content = get_pdf_content(filename)
+    if not content:
+        return f"No content found in {filename}."
+
+    lines = content.splitlines()
+    matches = [line for line in lines if keyword.lower() in line.lower()]
+
+    if not matches:
+        return f"No matches found for '{keyword}' in {filename}."
+
+    return "\n\n".join(matches[:5])  # Limit to 5 for brevity
