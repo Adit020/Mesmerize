@@ -32,43 +32,49 @@ conn.commit()
 # ---------- FUNCTION ----------
 
 def start_voice_session():
-    time.sleep(2)  # slight delay for GUI to load
+    time.sleep(1.5)  # Give time for UI to initialize
     speak("Hello, I'm Mesmerizer.")
     speak("Would you like to upload a new PDF or access an existing one?")
+
     response = listen_to_user()
 
     if response:
         if "upload" in response:
-            speak("Okay, opening upload dialog.")
-            upload_pdf()
-        elif "access" in response or "existing" in response or "read" in response:
+            speak("Opening upload dialog.")
+            root.after(0, upload_pdf)
+        elif "access" in response or "open" in response:
             cursor.execute("SELECT filename FROM pdfs")
             files = [row[0] for row in cursor.fetchall()]
             if files:
-                speak(f"You have {len(files)} file(s) stored.")
-                speak("Available files are: " + ", ".join(files[:3]))
-                speak("Please select one from the dropdown or say load.")
+                speak(f"You have {len(files)} files.")
+                speak("Available files are " + ", ".join(files[:3]))
+                speak("You can choose one from the dropdown.")
+                root.after(0, update_dropdown)
             else:
-                speak("No PDFs stored yet.")
+                speak("No PDFs are stored yet.")
         else:
-            speak("I didn't understand that. Please click a button to continue.")
+            speak("Sorry, I didn't understand that. You can try again or use the buttons.")
+    else:
+        speak("Please use the buttons to upload or access a PDF.")
 
 def listen_to_user():
     recognizer = sr.Recognizer()
     with sr.Microphone() as source:
-        log("[VOICE] Listening...")
-        speak("Listening now.")
+        recognizer.adjust_for_ambient_noise(source, duration=1.5)  # Noise cancellation
+        show_listening(True)
+        speak("I'm listening.")
         try:
-            audio = recognizer.listen(source, timeout=5)
+            audio = recognizer.listen(source, timeout=7)
             query = recognizer.recognize_google(audio).lower()
-            log(f"[VOICE] You said: {query}")
+            show_listening(False)
             return query
         except sr.UnknownValueError:
             speak("Sorry, I didn't catch that.")
-            return None
         except sr.RequestError:
-            speak("Sorry, I'm having trouble with speech recognition.")
-            return None
+            speak("There was a network error.")
+        finally:
+            show_listening(False)
+    return None
 
 # ---------- GUI FUNCTIONS ----------
 
@@ -156,7 +162,21 @@ def log(text):
     log_display.insert(tk.END, text + "\n")
     log_display.config(state='disabled')
 
+def show_listening(is_listening):
+    if is_listening:
+        canvas.itemconfig(circle, fill="#00FFD1")
+        pulse_circle()
+    else:
+        canvas.itemconfig(circle, fill="#444444")
+
+def pulse_circle():
+    current_color = canvas.itemcget(circle, "fill")
+    next_color = "#00AA88" if current_color == "#00FFD1" else "#00FFD1"
+    canvas.itemconfig(circle, fill=next_color)
+    root.after(500, pulse_circle)
+
 # ---------- MAIN UI SETUP ----------
+
 root = tk.Tk()
 root.title("Mesmerizer - PDF Voice Assistant")
 root.geometry("700x600")
@@ -167,6 +187,10 @@ title_label.pack(pady=10)
 
 desc_label = tk.Label(root, text="Upload your PDF once. Select anytime to retrieve and continue.", bg="#1F1F1F", fg="#CCCCCC")
 desc_label.pack()
+
+canvas = tk.Canvas(root, width=100, height=100, bg="#1F1F1F", highlightthickness=0)
+canvas.pack(pady=5)
+circle = canvas.create_oval(20, 20, 80, 80, fill="#444444")
 
 upload_button = tk.Button(root, text="Upload PDF", command=upload_pdf, bg="#00A8E1", fg="#FFFFFF", font=("Helvetica", 12, "bold"), width=15, height=2)
 upload_button.pack(pady=10)
@@ -197,5 +221,10 @@ exit_button.pack(pady=10)
 
 # Initialize dropdown values
 update_dropdown()
+
+# ---------- START VOICE SESSION IN A SEPARATE THREAD ----------
+
+voice_thread = threading.Thread(target=start_voice_session, daemon=True)
+voice_thread.start()
 
 root.mainloop()
