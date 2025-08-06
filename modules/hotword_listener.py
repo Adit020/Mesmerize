@@ -3,8 +3,10 @@ import queue
 import json
 from vosk import Model, KaldiRecognizer
 from modules.voice_engine import speak
+import os
 
-model = Model("models/vosk-model-small-en-in-0.4")  # change path if needed
+model_path = os.path.join(os.path.dirname(__file__), "..", "models", "vosk-model-small-en-in-0.4")
+model = Model(model_path)
 q = queue.Queue()
 
 def audio_callback(indata, frames, time, status):
