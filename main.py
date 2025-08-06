@@ -9,7 +9,7 @@ import json
 
 from modules.voice_engine import speak, listen_command
 from modules.hotword_listener import wait_for_wake_word
-from modules.waveform_visualizer import start_waveform_stream, stop_waveform_stream
+from ui.waveform_visualizer import WaveformVisualizer
 from ui.listening_visuals import PulseVisualizer
 from config.user_config import get_or_set_wake_phrase
 from modules import pdf_manager
@@ -27,6 +27,7 @@ cursor.execute("""
 conn.commit()
 
 # --- UI SETUP ---
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
@@ -44,9 +45,11 @@ desc_label.pack()
 vis_frame = ctk.CTkFrame(app)
 vis_frame.pack(pady=10)
 
+waveform = WaveformVisualizer(vis_frame)
+waveform.pack(side="right", padx=20)
+
 pulse = PulseVisualizer(vis_frame)
 pulse.pack(side="left", padx=20)
-start_waveform_stream(vis_frame)
 
 # PDF Management UI
 upload_btn = ctk.CTkButton(app, text="Upload PDF", command=lambda: upload_pdf())
@@ -138,8 +141,12 @@ def assistant_thread():
         wait_for_wake_word(wake_phrase)
         speak("Listening now.")
         pulse.start_animation()
+        waveform.start_visualization()
+
         command = listen_command()
+
         pulse.stop_animation()
+        waveform.stop_visualization()
 
         if command:
             if "upload" in command:
