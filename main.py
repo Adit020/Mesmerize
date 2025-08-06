@@ -12,6 +12,7 @@ from modules.hotword_listener import wait_for_wake_word
 from modules.waveform_visualizer import start_waveform_stream, stop_waveform_stream
 from ui.listening_visuals import PulseVisualizer
 from config.user_config import get_or_set_wake_phrase
+from modules import pdf_manager
 
 # --- DATABASE SETUP ---
 conn = sqlite3.connect("mesmerizer.db")
@@ -142,15 +143,23 @@ def assistant_thread():
 
         if command:
             if "upload" in command:
-                speak("Opening upload.")
-                app.after(0, upload_pdf)
-            elif "access" in command or "open" in command:
-                speak("Checking stored files.")
-                app.after(0, update_dropdown)
+                speak("Opening file dialog. Please choose your PDF.")
+                result = pdf_manager.upload_pdf_dialog()
+                speak(result or "No file selected.")
+
+            elif "read" in command:
+                pdfs = pdf_manager.list_pdfs()
+                if not pdfs:
+                    speak("You don’t have any PDFs saved yet.")
+                else:
+                    latest = pdfs[0]
+                    content = pdf_manager.get_pdf_content(latest)
+                    speak(f"Reading the latest file: {latest}")
+                    speak(content[:500])  # limit for TTS
+                    speak("Reading truncated. You can ask for specific sections later.")
+
             else:
-                speak("Sorry, I didn’t understand.")
-        else:
-            speak("No command heard.")
+                speak("I heard: " + command)
 
 # --- Init ---
 update_dropdown()
